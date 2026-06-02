@@ -42,6 +42,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "invalid BACKUP_INTERVAL %q: %v\n", intervalStr, err)
 		os.Exit(1)
 	}
+	if interval <= 0 {
+		fmt.Fprintf(os.Stderr, "BACKUP_INTERVAL must be a positive duration, got %q\n", intervalStr)
+		os.Exit(1)
+	}
 
 	runAll(endpoints, backupDir)
 	ticker := time.NewTicker(interval)
@@ -152,9 +156,11 @@ func splitCSV(s string) []string {
 	if s == "" {
 		return nil
 	}
-	parts := strings.Split(s, ",")
-	for i, p := range parts {
-		parts[i] = strings.TrimSpace(p)
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
 	}
-	return parts
+	return out
 }
