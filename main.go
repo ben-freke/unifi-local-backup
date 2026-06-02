@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,9 +27,6 @@ func main() {
 	client := &http.Client{
 		Jar:     jar,
 		Timeout: 60 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: false},
-		},
 	}
 
 	creds, _ := json.Marshal(map[string]string{"username": username, "password": password})
@@ -39,6 +35,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "login request failed: %v\n", err)
 		os.Exit(1)
 	}
+	io.Copy(io.Discard, resp.Body) //nolint:errcheck
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		fmt.Fprintf(os.Stderr, "login failed: HTTP %d\n", resp.StatusCode)
@@ -57,10 +54,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := os.MkdirAll(backupDir, 0750); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create backup directory: %v\n", err)
+		os.Exit(1)
+	}
+
 	filename := fmt.Sprintf("unifi-backup-%s.unf", time.Now().UTC().Format("2006-01-02T150405Z"))
 	outPath := filepath.Join(backupDir, filename)
 
-	f, err := os.Create(outPath)
+	f, err := os.OpenFile(outPath, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0600)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to create output file: %v\n", err)
 		os.Exit(1)
