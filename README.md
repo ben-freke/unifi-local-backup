@@ -22,6 +22,8 @@ docker run --rm \
 | `UNIFI_USERNAME` | UniFi username |
 | `UNIFI_PASSWORD` | UniFi password |
 | `BACKUP_DIR` | Directory inside the container to write the backup file |
+| `PUID` | User ID to run as (default: internal `backup` user) |
+| `PGID` | Group ID to run as (default: internal `backup` group) |
 
 Backups are saved as `unifi-backup-<timestamp>.unf`.
 
