@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/robfig/cron/v3"
 )
@@ -41,7 +42,16 @@ func main() {
 		return
 	}
 
-	c := cron.New()
+	loc := time.Local
+	if tz := os.Getenv("TZ"); tz != "" {
+		var err error
+		if loc, err = time.LoadLocation(tz); err != nil {
+			fmt.Fprintf(os.Stderr, "invalid TZ %q: %v\n", tz, err)
+			os.Exit(1)
+		}
+	}
+
+	c := cron.New(cron.WithLocation(loc))
 	if _, err := c.AddFunc(schedule, func() { runAll(endpoints, backupDir) }); err != nil {
 		fmt.Fprintf(os.Stderr, "invalid BACKUP_SCHEDULE %q: %v\n", schedule, err)
 		os.Exit(1)

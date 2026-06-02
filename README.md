@@ -41,6 +41,7 @@ docker run \
 | `UNIFI_PASSWORD` | UniFi password (shared across all controllers) |
 | `BACKUP_DIR` | Directory inside the container to write backup files |
 | `BACKUP_SCHEDULE` | Cron expression (e.g. `0 2 * * *` for 2am daily). If set, runs on a repeating schedule instead of one-shot. Runs once immediately on startup, then follows the schedule |
+| `TZ` | Timezone for the cron schedule (e.g. `Australia/Sydney`, `America/New_York`). Defaults to UTC |
 | `PUID` | User ID to run as — Docker/Compose only (default: internal `backup` user) |
 | `PGID` | Group ID to run as — Docker/Compose only (default: internal `backup` group) |
 
