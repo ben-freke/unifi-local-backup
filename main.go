@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
@@ -19,13 +18,6 @@ type endpoint struct {
 	host     string
 	username string
 	password string
-}
-
-type healthState struct {
-	Status      string    `json:"status"`
-	LastRun     time.Time `json:"last_run,omitempty"`
-	LastSuccess time.Time `json:"last_success,omitempty"`
-	Errors      []string  `json:"errors,omitempty"`
 }
 
 func main() {
@@ -36,10 +28,6 @@ func main() {
 	}
 
 	endpoints := parseEndpoints()
-	if len(endpoints) == 0 {
-		fmt.Fprintln(os.Stderr, "no endpoints configured: set UNIFI_HOSTS/UNIFI_USERNAMES/UNIFI_PASSWORDS or UNIFI_HOST/UNIFI_USERNAME/UNIFI_PASSWORD")
-		os.Exit(1)
-	}
 
 	intervalStr := os.Getenv("BACKUP_INTERVAL")
 	if intervalStr == "" {
@@ -55,35 +43,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	var state atomic.Pointer[healthState]
-
-	healthPort := os.Getenv("HEALTH_PORT")
-	if healthPort == "" {
-		healthPort = "8080"
-	}
-	go serveHealth(healthPort, &state)
-
-	update := func() {
-		errs := runAll(endpoints, backupDir)
-		now := time.Now()
-		hs := &healthState{LastRun: now}
-		if len(errs) == 0 {
-			hs.Status = "ok"
-			hs.LastSuccess = now
-		} else {
-			hs.Status = "degraded"
-			for _, e := range errs {
-				hs.Errors = append(hs.Errors, e.Error())
-			}
-		}
-		state.Store(hs)
-	}
-
-	update()
+	runAll(endpoints, backupDir)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for range ticker.C {
-		update()
+		runAll(endpoints, backupDir)
 	}
 }
 
@@ -160,26 +124,26 @@ func hostLabel(rawURL string) string {
 }
 
 func parseEndpoints() []endpoint {
-	hosts := splitCSV(os.Getenv("UNIFI_HOSTS"))
-	usernames := splitCSV(os.Getenv("UNIFI_USERNAMES"))
-	passwords := splitCSV(os.Getenv("UNIFI_PASSWORDS"))
-
-	if len(hosts) == 0 {
-		h, u, p := os.Getenv("UNIFI_HOST"), os.Getenv("UNIFI_USERNAME"), os.Getenv("UNIFI_PASSWORD")
-		if h != "" && u != "" && p != "" {
-			return []endpoint{{host: h, username: u, password: p}}
-		}
-		return nil
-	}
-
-	if len(usernames) != len(hosts) || len(passwords) != len(hosts) {
-		fmt.Fprintln(os.Stderr, "UNIFI_HOSTS, UNIFI_USERNAMES, and UNIFI_PASSWORDS must have the same number of entries")
+	username := os.Getenv("UNIFI_USERNAME")
+	password := os.Getenv("UNIFI_PASSWORD")
+	if username == "" || password == "" {
+		fmt.Fprintln(os.Stderr, "required env vars: UNIFI_USERNAME, UNIFI_PASSWORD")
 		os.Exit(1)
 	}
 
+	hosts := splitCSV(os.Getenv("UNIFI_HOSTS"))
+	if len(hosts) == 0 {
+		h := os.Getenv("UNIFI_HOST")
+		if h == "" {
+			fmt.Fprintln(os.Stderr, "required env var: UNIFI_HOST or UNIFI_HOSTS")
+			os.Exit(1)
+		}
+		hosts = []string{h}
+	}
+
 	eps := make([]endpoint, len(hosts))
-	for i := range hosts {
-		eps[i] = endpoint{host: hosts[i], username: usernames[i], password: passwords[i]}
+	for i, h := range hosts {
+		eps[i] = endpoint{host: h, username: username, password: password}
 	}
 	return eps
 }
@@ -193,22 +157,4 @@ func splitCSV(s string) []string {
 		parts[i] = strings.TrimSpace(p)
 	}
 	return parts
-}
-
-func serveHealth(port string, state *atomic.Pointer[healthState]) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		hs := state.Load()
-		if hs == nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(map[string]string{"status": "starting"}) //nolint:errcheck
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(hs) //nolint:errcheck
-	})
-	if err := (&http.Server{Addr: ":" + port, Handler: mux}).ListenAndServe(); err != nil {
-		fmt.Fprintf(os.Stderr, "health server: %v\n", err)
-	}
 }
