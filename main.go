@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/robfig/cron/v3"
 )
 
 type endpoint struct {
@@ -29,30 +31,23 @@ func main() {
 
 	endpoints := parseEndpoints()
 
-	intervalStr := os.Getenv("BACKUP_INTERVAL")
-	if intervalStr == "" {
+	schedule := os.Getenv("BACKUP_SCHEDULE")
+	if schedule == "" {
 		if errs := runAll(endpoints, backupDir); len(errs) > 0 {
 			os.Exit(1)
 		}
 		return
 	}
 
-	interval, err := time.ParseDuration(intervalStr)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "invalid BACKUP_INTERVAL %q: %v\n", intervalStr, err)
-		os.Exit(1)
-	}
-	if interval <= 0 {
-		fmt.Fprintf(os.Stderr, "BACKUP_INTERVAL must be a positive duration, got %q\n", intervalStr)
+	c := cron.New()
+	if _, err := c.AddFunc(schedule, func() { runAll(endpoints, backupDir) }); err != nil {
+		fmt.Fprintf(os.Stderr, "invalid BACKUP_SCHEDULE %q: %v\n", schedule, err)
 		os.Exit(1)
 	}
 
 	runAll(endpoints, backupDir)
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for range ticker.C {
-		runAll(endpoints, backupDir)
-	}
+	c.Start()
+	select {}
 }
 
 func runAll(endpoints []endpoint, backupDir string) []error {

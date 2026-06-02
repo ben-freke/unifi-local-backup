@@ -26,7 +26,7 @@ docker run \
   -e UNIFI_USERNAME=admin \
   -e UNIFI_PASSWORD=secret \
   -e BACKUP_DIR=/backups \
-  -e BACKUP_INTERVAL=6h \
+  -e BACKUP_SCHEDULE="0 2 * * *" \
   -v /path/to/local/backups:/backups \
   ghcr.io/ben-freke/unifi-local-backup
 ```
@@ -40,7 +40,7 @@ docker run \
 | `UNIFI_USERNAME` | UniFi username (shared across all controllers) |
 | `UNIFI_PASSWORD` | UniFi password (shared across all controllers) |
 | `BACKUP_DIR` | Directory inside the container to write backup files |
-| `BACKUP_INTERVAL` | Go duration string (e.g. `6h`, `30m`). If set, runs on a repeating schedule instead of one-shot |
+| `BACKUP_SCHEDULE` | Cron expression (e.g. `0 2 * * *` for 2am daily). If set, runs on a repeating schedule instead of one-shot. Runs once immediately on startup, then follows the schedule |
 | `PUID` | User ID to run as — Docker/Compose only (default: internal `backup` user) |
 | `PGID` | Group ID to run as — Docker/Compose only (default: internal `backup` group) |
 
