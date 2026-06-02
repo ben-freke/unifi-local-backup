@@ -9,8 +9,10 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -47,7 +49,11 @@ func main() {
 
 	runAll(endpoints, backupDir)
 	c.Start()
-	select {}
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
+	<-sig
+	c.Stop()
 }
 
 func runAll(endpoints []endpoint, backupDir string) []error {
