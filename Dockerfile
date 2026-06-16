@@ -4,7 +4,7 @@ COPY go.mod go.sum ./
 COPY main.go ./
 RUN go build -o unifi-backup .
 
-FROM alpine:3.23
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates shadow su-exec && \
     addgroup -S backup && adduser -S backup -G backup && \
     mkdir -p /backups && chown backup:backup /backups
